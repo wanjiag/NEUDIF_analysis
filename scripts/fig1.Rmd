@@ -1,0 +1,115 @@
+---
+title: "fig1"
+author: "Wanjia Guo"
+date: "6/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("set_up.R")
+source("behav_cut_off.R")
+```
+
+# Fig.1c
+
+```{r fig.1c}
+behavioral_df = behavioral_df %>%
+  filter(subnum %in% sub_list) %>% 
+  mutate(high.conf.correct = ifelse((accuracy == 1 & confResp == 1), 1, 0))
+
+high_conf = behavioral_df %>% 
+  group_by(subnum, run) %>% 
+  summarise(acc=mean(high.conf.correct))
+high_conf_plot = high_conf %>%
+  filter(subnum %in% sub_list) %>% 
+  group_by(run) %>% 
+  summarise(acc_plot=mean(acc), se=sd(acc)/sqrt(n()), n = n())
+plot1.c = ggplot(high_conf_plot, aes(x=run,y=acc_plot))+geom_line(size=0.5)+
+  geom_jitter(high_conf, mapping = aes(x=run, y=acc), color='grey',shape=1, width=0.15,size=1.5)+
+  scale_y_continuous(name="High Confidence Correct",limits = c(0,1.06),labels = scales::percent) +
+  scale_x_continuous(name="Rounds",breaks=seq(1,6,1))+
+  theme_settings + 
+  theme(legend.position = 'none',plot.margin=unit(c(0,5.5,5.5,5.5), "pt")) +
+    geom_errorbar(data = high_conf_plot, aes(ymin=acc_plot-se, ymax=acc_plot+se), color="black", width=0.1, size=0.5)
+
+plot1.c
+```
+
+# Fig.1d
+
+```{r fig.1d}
+rasterPalette <- c("grey28","lightseagreen","#010101")
+
+sample_sub = behavioral_df %>% filter(subnum=='18') %>% 
+  group_by(run, scene_num) %>% 
+  summarise(high.conf.correct=mean(high.conf.correct)) %>% 
+  mutate(high.conf.correct = ifelse((high.conf.correct == 1), 1, 0)) %>% 
+  mutate(scene_num = ifelse((scene_num == 0), 18, scene_num))
+  
+sample_sub$high.conf.correct = factor(sample_sub$high.conf.correct)
+fig1.d = ggplot(sample_sub, aes(x=run, y=scene_num, color=high.conf.correct)) + 
+  geom_errorbar(aes(ymin=scene_num-0.25, ymax=scene_num+0.25), width=0, size=1.1) +
+  scale_color_manual(values=rasterPalette) + theme_classic() + labs(color = "correct associations")+
+  scale_x_continuous(name="Rounds",breaks=seq(1,6,1))+
+  scale_y_reverse(name="Pairmates", breaks=seq(1,18,1), )+
+  theme_settings + theme(legend.position = 'none')
+
+fig1.d
+```
+
+# Fig.1e
+
+```{r revised: fig.1e}
+
+plot_turning = turning %>% 
+  filter(subnum %in% sub_list) %>% 
+  group_by(run, subnum,.drop = FALSE) %>% 
+  summarise(count=n()) %>% 
+  pivot_wider(names_from = subnum, values_from = count, values_fill = 0) %>% 
+  pivot_longer(!run, names_to = "subnum", values_to = "count")
+  
+plot_summary = plot_turning %>% group_by(run) %>% 
+  summarise(Mean = mean(count), se= sd(count)/(sqrt(n())))
+
+plot1.e = ggplot(plot_summary, aes(x=run, y=Mean))+
+  geom_bar(stat="identity", color="lightseagreen", width = 0.7, fill="white", size=1)+
+  geom_jitter(plot_turning, mapping = aes(x=run, y=count),
+              color='darkgrey',width = 0.15, height = 0, size=2, alpha = 0.4)+
+  scale_y_continuous(name="# of Pairs Learned") +
+  scale_x_continuous(name="Rounds",breaks=seq(1,7,1),labels = c(1:6, 'N.L.'))+
+  theme_settings + 
+  theme(legend.position = 'none',plot.margin=unit(c(0,5.5,5.5,5.5), "pt"))
+
+plot1.e
+```
+
+# Related Stats
+
+```{r Test phase stats}
+
+correct = behavioral_df %>% 
+  group_by(subnum, run) %>% 
+  summarise(acc=mean(accuracy))
+
+for (each_run in unique(correct$run)){
+  tmp = correct %>% filter(run == each_run)
+  print(t.test(tmp$acc, mu=0.5))
+  print(cohensD(tmp$acc, mu=0.5))
+}
+
+ezANOVA(data=correct,
+        wid=subnum,
+        within = .(run),
+        dv = acc)
+
+for (each_run in unique(high_conf$run)){
+  tmp = high_conf %>% filter(run == each_run)
+  print(t.test(tmp$acc, mu=0.5))
+}
+
+ezANOVA(data=high_conf,
+        wid=subnum,
+        within = .(run),
+        dv = acc)
+
+```

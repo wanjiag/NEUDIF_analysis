@@ -1,0 +1,47 @@
+---
+title: "fig4"
+author: "Wanjia Guo"
+date: "6/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("set_up.R")
+plot_sub <- read_csv2("../data/object.csv") 
+
+plot_sub$roi <- factor(plot_sub$roi, levels = rois)
+plot_sub$type = plyr::revalue(plot_sub$type, c("within_item-across_pair"="target", "within_pair-across_pair"="competitor"))
+plot_sub$type = factor(plot_sub$type, levels=c('competitor', 'target'))
+plot_sub$roi = plyr::revalue(plot_sub$roi, 
+                             c("ca23dg_body_thre_0.5"="CA23DG", 
+                               "ca1_body_thre_0.5"="CA1", 
+                               "ppa_avg_scene_top_300" = "PPA", 
+                               "evc_avg_all_top_300" = "EVC"))
+plot_sub$run = factor(plot_sub$run, levels=c('pre-IP', 'IP'))
+plot_sub = plot_sub %>% filter(roi %in% c("CA23DG", "CA1"))
+
+plot_diff_df = plot_sub %>% group_by(type, run, roi) %>% 
+  summarise(Mean = mean(z), se= sd(z)/(sqrt(n())))
+```
+
+# Fig.4b
+
+```{r fig.4b}
+fig4.b = ggplot(plot_diff_df, aes(x=run, y=Mean, color=roi, group = type))+
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_line(stat='identity', aes(linetype=type), size=1, position=position_dodge(width=0.25))+
+    geom_point(stat='identity', size=3,position=position_dodge(width=0.25))+
+    geom_errorbar(aes(ymin=Mean-se, ymax=Mean+se), width=0, size=1, position=position_dodge(width=0.25)) + 
+  scale_color_manual(values = cbPalette, name='ROIs') +
+  scale_linetype_manual(values=c("longdash", "solid"))+
+  scale_x_discrete(labels=c("pre-IP" = "Pre-Learned", "IP" = "Learned", "post-IP" = "LR+1"))+
+  ylim( -0.015,0.01)+
+    labs(y = "Scene-object Correlations ("~italic(z)~")", x = "Behavioral State")+
+    theme_settings+
+  facet_grid(cols = vars(roi))+theme(strip.text.x = element_blank(),
+                                     strip.background = element_blank(),
+                                     legend.position = 'none')
+
+fig4.b
+```
+

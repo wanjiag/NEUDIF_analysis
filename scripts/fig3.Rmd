@@ -1,0 +1,194 @@
+---
+title: "fig3"
+author: "Wanjia Guo"
+date: "6/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("set_up.R")
+output = read_csv('../data/PSS_behav.csv')
+```
+
+# Fig.3b
+
+```{r fig.3b}
+later.cor = output %>% group_by(sub,roi) %>% summarise(
+  V1.2 = fisherz(cor(`1`,`2`,method = "spearman")),
+  V1.3 = fisherz(cor(`1`,`3`,method = "spearman")),
+  V1.4 = fisherz(cor(`1`,`4`,method = "spearman")),
+  V1.5 = fisherz(cor(`1`,`5`,method = "spearman")),
+  V2.3 = fisherz(cor(`2`,`3`,method = "spearman")),
+  V2.4 = fisherz(cor(`2`,`4`,method = "spearman")),
+  V2.5 = fisherz(cor(`2`,`5`,method = "spearman")),
+  V3.4 = fisherz(cor(`3`,`4`,method = "spearman")),
+  V3.5 = fisherz(cor(`3`,`5`,method = "spearman")),
+  V4.5 = fisherz(cor(`4`,`5`,method = "spearman"))
+  ) %>% gather("run", "cor", -c(sub,roi), factor_key=TRUE)
+
+later.cor$roi = factor(later.cor$roi,
+                         levels=rois)
+later.cor$roi = plyr::revalue(later.cor$roi, c("ca23dg_body_thre_0.5"="CA3/DG",
+                                       "ca1_body_thre_0.5"="CA1",
+                                       "ppa_avg_scene_top_300" = "PPA",
+                                       "evc_avg_all_top_300" = "EVC"))
+later.cor$lag <- ifelse(later.cor$run%in%c('V1.2','V2.3','V3.4','V4.5'), "1",
+                 ifelse(later.cor$run%in%c('V1.3','V2.4','V3.5'), "2",
+                 ifelse(later.cor$run%in%c('V1.4','V2.5'),"3",
+                 ifelse(later.cor$run%in%c('V1.5'),"4",
+                        NA))))
+
+lag.later.cor = later.cor %>% 
+  filter(run!='V4.5') %>% 
+  filter(lag %in% c(1,2)) %>% 
+  group_by(roi,lag) %>% summarise(M = mean(cor),se = sd(cor)/(sqrt(n()))) %>% 
+  filter(roi %in% c('CA3/DG','CA1')) 
+  
+fig3b = ggplot(lag.later.cor, aes(x=roi, y=M, color=roi))+
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_point(stat='identity', size=3.5, position=position_dodge(width=0.6))+
+  geom_errorbar(aes(ymin=M-se, ymax=M+se), width=0, size=1,
+                position=position_dodge(width=0.6)) + 
+  scale_colour_manual(values=cbPalette, name = "ROIs")+
+  ylim(-0.1,0.1) + 
+    theme_settings + theme(legend.position = "none",
+                         strip.background = element_blank(),
+                         strip.text.x = element_blank(),
+                         axis.text.x = element_text(colour =cbPalette))+
+  facet_wrap(~lag)+
+    labs(y = "Mean Rank Order Correlation ("~italic(z)~")", x = "ROIs")
+
+fig3b
+
+```
+
+
+```{r fig.3b stats}
+lag.later.cor.sub = later.cor %>% 
+  filter(run!='V4.5') %>% 
+  filter(lag %in% c(1,2))%>% 
+  group_by(roi,lag, sub) %>% summarise(M = mean(cor))
+
+
+t.test(lag.later.cor.sub %>% filter(roi=='CA3/DG' & lag==1) %>% .$M)
+cohensD(lag.later.cor.sub %>% filter(roi=='CA3/DG' & lag==1) %>% .$M)
+
+t.test(lag.later.cor.sub %>% filter(roi=='CA1' & lag==1) %>% .$M)
+cohensD(lag.later.cor.sub %>% filter(roi=='CA1' & lag==1) %>% .$M)
+
+t.test(lag.later.cor.sub %>% filter(roi=='CA1' & lag==1) %>% .$M,
+       lag.later.cor.sub %>% filter(roi=='CA3/DG' & lag==1) %>% .$M,
+       paired = TRUE)
+cohensD(lag.later.cor.sub %>% filter(roi=='CA1' & lag==1) %>% .$M,
+       lag.later.cor.sub %>% filter(roi=='CA3/DG' & lag==1) %>% .$M,
+       method="paired")
+
+t.test(lag.later.cor.sub %>% filter(roi=='CA3/DG' & lag==2) %>% .$M)
+cohensD(lag.later.cor.sub %>% filter(roi=='CA3/DG' & lag==2) %>% .$M)
+
+t.test(lag.later.cor.sub %>% filter(roi=='CA1' & lag==2) %>% .$M)
+cohensD(lag.later.cor.sub %>% filter(roi=='CA1' & lag==2) %>% .$M)
+
+t.test(lag.later.cor.sub %>% filter(roi=='CA1' & lag==2) %>% .$M,
+       lag.later.cor.sub %>% filter(roi=='CA3/DG' & lag==2) %>% .$M,
+       paired = TRUE)
+
+ezANOVA(lag.later.cor.sub,
+        dv=M,
+        wid=sub,
+        within=.(roi,lag))
+
+
+
+t.test(lag.later.cor.sub %>% filter(roi=='EVC' & lag==1) %>% .$M)
+cohensD(lag.later.cor.sub %>% filter(roi=='EVC' & lag==1) %>% .$M)
+
+
+t.test(lag.later.cor.sub %>% filter(roi=='PPA' & lag==2) %>% .$M)
+
+t.test(lag.later.cor.sub %>% filter(roi=='PPA' & lag==1) %>% .$M,
+       lag.later.cor.sub %>% filter(roi=='PPA' & lag==2) %>% .$M,
+       paired = TRUE)
+```
+
+# Fig.3c
+
+```{r fig.3c}
+output = output %>% rename(post_ip_run = run)
+
+output$roi = plyr::revalue(output$roi, c("ca23dg_body_thre_0.5"="CA3/DG",
+                                       "ca1_body_thre_0.5"="CA1",
+                                       "ppa_avg_scene_top_300" = "PPA",
+                                       "evc_avg_all_top_300" = "EVC"))
+output$roi = factor(output$roi, levels = c("CA3/DG", "CA1", "PPA", "EVC"))
+output_long <- gather(output, run, mean, `1`:`5`, factor_key=FALSE)
+
+df = setNames(data.frame(matrix(ncol = 5, nrow = 0)), c("sub", "scene_id", ""))
+
+for (each_run in c(3:6)){
+  print(each_run)
+          pre = output_long %>% 
+            filter(post_ip_run == each_run & run == (each_run-2))%>% 
+              mutate(run = 'pre')
+          ip = output_long %>% 
+            filter(post_ip_run == each_run & run == (each_run-1))%>% 
+              mutate(run = 'ip')
+          df = rbind(df, pre, ip)
+}
+
+df_wide <- spread(df, run, mean) %>% 
+    group_by(roi, sub) %>% 
+    mutate(bin = as.numeric(cut2(pre, g=4))) %>% filter(roi%in%c('CA3/DG', 'CA1'))
+
+df_wide %>% 
+  group_by(roi, bin, sub) %>% 
+  count() %>% 
+  filter(roi == 'CA3/DG') %>%
+  ungroup() %>% 
+  group_by(bin) %>% 
+  summarise(m = mean(n), sum=sum(n))
+
+df.sum.by.sub = df_wide %>% 
+  gather(time, value, -c(sub, scene_id, post_ip_run, bin, roi)) %>% 
+  group_by(bin, time, roi, sub) %>% 
+  summarise(mean = mean(value), n = n())
+df.sum.by.sub$bin = factor(df.sum.by.sub$bin)
+
+df.sum.by.group = df.sum.by.sub %>% group_by(bin, time, roi) %>% summarise(M = mean(mean),se = sd(mean)/(sqrt(n())))
+df.sum.by.group$time = factor(df.sum.by.group$time, levels = c('pre', 'ip'))
+df.sum.by.group$bin = factor(df.sum.by.group$bin)
+
+fig3c = ggplot(df.sum.by.group %>% filter(time == 'ip' & roi %in% c('CA3/DG', 'CA1') ), aes(x=bin, y=M, color=roi))+
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_point(stat='identity', size=3.5, position=position_dodge(width=0.3)) +
+  geom_errorbar(aes(ymin=M-se, ymax=M+se), size=1, width=0,position=position_dodge(width=0.3))+
+  scale_color_manual(values = cbPalette, name="ROIs")+
+  ylim(-0.035,0.025) + 
+  labs(y="Pairmate Similarity Scores at IP ("~italic(z)~")", x="Pre-IP Pairmate Similarity Scores (Quartile)")+
+  scale_x_discrete(labels=c("1" = "1st", 
+                            "2" = "2nd",
+                            "3" = "3rd",
+                            "4" = "4th"))+
+  theme_settings+ theme(legend.justification=c(0,0), 
+                        legend.position=c(0.3,0.05))
+
+fig3c
+```
+
+
+```{r fig.3c stats}
+ezANOVA(data=df.sum.by.sub %>% filter(time=='ip'),
+        dv=mean, 
+        wid=sub,
+        within=.(roi, bin))
+
+t.test(df.sum.by.sub %>% filter(roi=='CA3/DG', bin==4, time=='ip') %>% .$mean,
+       df.sum.by.sub %>% filter(roi=='CA1', bin==4, time=='ip') %>% .$mean,
+       paired = TRUE)
+cohensD(df.sum.by.sub %>% filter(roi=='CA3/DG', bin==4, time=='ip') %>% .$mean,
+       df.sum.by.sub %>% filter(roi=='CA1', bin==4, time=='ip') %>% .$mean,
+       method="paired")
+
+t.test(df.sum.by.sub %>% filter(roi=='CA3/DG', bin==4, time=='ip') %>% .$mean)
+cohensD(df.sum.by.sub %>% filter(roi=='CA3/DG', bin==4, time=='ip') %>% .$mean)
+```

@@ -1,0 +1,593 @@
+---
+title: "supplementary_info"
+author: "Wanjia Guo"
+date: "6/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("set_up.R")
+source("behav_cut_off.R")
+library(cowplot)
+library(magick)
+```
+
+# Supplementary Table 1
+
+```{r}
+behav_summary = turning %>% group_by(subnum, run) %>% summarise(n=n())
+behav_summary$subnum = factor(behav_summary$subnum)
+behav_summary$run = factor(behav_summary$run)
+
+behav_summary_wide = behav_summary %>% spread(run, n)
+behav_summary_wide[is.na(behav_summary_wide)] <- 0
+
+behav_summary_wide %>% gather(run, n, -subnum) %>% group_by(run) %>% summarise(m=mean(n), sd=sd(n))
+
+behav_summary_wide$N.L. = behav_summary_wide$`7`
+
+behav_summary_wide
+```
+
+# Supplementary Figure 1
+
+```{r}
+path = paste0('../data/ca23dg_correlation.csv') 
+curr_roi <- read_csv(path) %>% 
+  mutate(z = fisherz(cor)) %>%
+  filter(sub %in% sub_list) 
+
+across = curr_roi %>% filter(type == "across_pair") %>% 
+  group_by(type, session, sub, row) %>% 
+  summarise(Mean = mean(z)) %>% 
+  mutate(scene_id = substr(row, 4, nchar(row))) %>% 
+  group_by(type, session, scene_id, sub) %>% 
+  summarise(m = mean(Mean))
+
+within = curr_roi %>% filter(type != "across_pair") %>% 
+  mutate(scene_id = substr(row, 4, nchar(row))) %>% 
+  group_by(type, session, scene_id, sub) %>% 
+  summarise(m = mean(z))
+
+full_join(across, within) %>% 
+    pivot_wider(names_from = type, values_from = m) %>% 
+    mutate(pairmate.similarity = within_pair - across_pair) %>% 
+    select(-c(within_pair, across_pair, within_item)) %>% 
+    ezANOVA(., dv = pairmate.similarity, 
+            wid = sub, 
+            within = .(session, scene_id))
+
+behavioral_df %>% filter(subnum %in% sub_list) %>% 
+  mutate(high.conf.correct = ifelse((accuracy == 1 & confResp == 1), 1, 0)) %>%
+  group_by(scene_num, run, subnum) %>% 
+  summarise(Mean = mean(high.conf.correct)) %>% 
+  mutate(high.conf.correct = ifelse((Mean == 1), 1, 0),
+         scene_num = factor(scene_num)) %>% 
+  ezANOVA(., dv = high.conf.correct, 
+          wid = subnum, 
+          within = .(run, scene_num))
+
+behav = behavioral_df %>% filter(subnum %in% sub_list) %>% 
+  mutate(high.conf.correct = ifelse((accuracy == 1 & confResp == 1), 1, 0)) %>% 
+  group_by(scene_num, run, subnum) %>% 
+  summarise(Mean = mean(high.conf.correct)) %>% 
+  mutate(high.conf.correct = ifelse((Mean == 1), 1, 0)) %>% 
+  summarise(Mean = mean(high.conf.correct), 
+            se= sd(high.conf.correct)/(sqrt(n())),
+            n = n()) %>% 
+  mutate(scene_num = scene_num+1,
+         type = "behavior",
+         session = run) 
+  rename(
+    rounds = run,
+    scene_id = scene_num)
+
+id.name <- data.frame(
+    scene_id = c (1:18), 
+    scene_name = c('airplane_interior1',
+             'arch1',
+             'auditorium1',
+             'bedroom1',
+             'boardwalk1',
+             'corridor1',
+             'escalator1',
+             'gym1',
+             'icerink1',
+             'kitchen1',
+             'lighthouse1',
+             'log_cabin1',
+             'monument1',
+             'pagoda1',
+             'pool1',
+             'roller_coaster1',
+             'runway1',
+             'yoga_studio1'))
+
+rank = behav %>% 
+  group_by(scene_id) %>% 
+  summarise(m = mean(Mean)) %>% 
+  arrange(desc(m)) %>%
+  mutate(rank = 1:nrow(.),
+         split_haves = ifelse(rank <= 9, 1, 2),
+         new_id = ifelse(rank <= 9, rank, rank-9)) %>% 
+  left_join(id.name)
+  
+
+neural = full_join(across, within) %>% 
+  pivot_wider(names_from = type, values_from = m) %>% 
+  mutate(pairmate.similarity = within_pair - across_pair) %>% 
+  select(-c(within_pair, across_pair, within_item)) %>% 
+  group_by(session, scene_id) %>% 
+  summarise(Mean = mean(pairmate.similarity),
+            se = sd(pairmate.similarity)/(sqrt(n())),
+            n = n()) %>% 
+  mutate(scene_id = as.numeric(scene_id)+1,
+         type = "CA23DG") 
+
+df = rbind(behav, neural) %>% 
+  left_join(., rank %>% select(scene_id, rank, split_haves, new_id), by = 'scene_id')
+
+ggplot(df %>% filter(type == 'behavior'), 
+         aes(x=session, y=Mean, group=rank))+
+    geom_hline(aes(yintercept = m), 
+               data=rank, 
+               color = 'red', 
+               alpha = 0.5,
+               linetype = 'dashed')+
+  geom_line()+
+  geom_errorbar(aes(ymin=Mean-se, ymax=Mean+se), width=0, size=0.8)+
+  facet_grid(new_id~split_haves)+
+  labs(x="Rounds", y="High Confidence Correct")+
+  theme_settings+
+  theme_minimal()
+  
+ggplot(df %>% filter(type == 'CA23DG'), 
+         aes(x=session, y=Mean, group=rank))+
+  geom_line()+
+  geom_errorbar(aes(ymin=Mean-se, ymax=Mean+se), width=0, size=0.8)+
+  facet_grid(new_id~split_haves)+
+  labs(x="Timepoint", y="Pairmate Similarity Scores ("~italic(z)~")")+
+  theme_settings+
+  theme_minimal() +
+  theme(strip.background = element_blank(),
+        strip.text = element_blank())
+```
+
+
+# Supplementary Figure 2a
+
+```{r}
+session_df <- read_csv2("../data/PSS_by_session.csv") %>% 
+  mutate(session = factor(session),
+         roi = plyr::revalue(roi, c("ca23dg_body_thre_0.5"="CA23DG",
+                                    "ca1_body_thre_0.5"="CA1",
+                                    "ppa_avg_scene_top_300" = "PPA",
+                                    "evc_avg_all_top_300" = "EVC")),
+         roi = factor(roi, levels = c("CA23DG", "CA1", "PPA", "EVC")))
+
+sub_session_df <- session_df %>% 
+    group_by(session, roi) %>%
+    summarise(Mean = mean(value), se = sd(value)/(sqrt(n())))
+
+ggplot(sub_session_df, aes(x=session, y=Mean, color=roi))+
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_point(stat='identity', size=3, position=position_dodge(width=0.4))+
+  geom_errorbar(aes(ymin=Mean-se, ymax=Mean+se), 
+                width=0, size=1, 
+                position=position_dodge(width=0.4)) + 
+  geom_line(aes(color=roi, group=roi), size=1,
+            position=position_dodge(width=0.4))+
+  scale_colour_manual(name = "ROIs", values=cbPalette)+
+    labs(y = "Pairmate Similarity Scores ("~italic(z)~")", x = "Timepoint")+
+    #scale_x_discrete(labels=c("1" = "1-2", "2" = "2-3","3" = "3-4","4" = "4-5","5" = "5-6"))+
+  scale_y_continuous(limits=c(-.008, .016),
+                     breaks = waiver(), n.breaks = 8)+
+  theme_settings+theme(
+    legend.position = "none",
+    legend.justification = c("left", "top"),
+    legend.text =  text.14,
+    legend.title = text.14,
+    strip.background = element_blank(),
+    strip.text.x = text.14
+    ) +
+  facet_wrap(~roi, nrow=1)
+```
+
+# Supplementary Figure 2b
+
+```{r}
+load("../data/correlation_matrix.RData")
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+remove('plot.summary')
+remove('sub.summary')
+
+roi.cor.matrix = all_data[[1]]
+
+sub.matrix = roi.cor.matrix %>% 
+  filter(run.1 %!in% c("N+5","N+4","N-4","N-5"),
+         run.2 %!in% c("N+5","N+4","N-4","N-5")) %>% 
+  group_by(run.1,run.2,sub) %>% 
+  summarise(Mean = mean(z))
+
+sub.matrix %>% 
+  group_by(run.1,run.2) %>% 
+  summarise(m = mean(Mean)) %>% 
+  mutate(run.1 = revalue(run.1, c("N+3"=3,"N+2"=2, "N+1" =1,"N" = 0,
+                                   "N-1" = -1, "N-2" = -2, "N-3" = -3)),
+         run.2 = revalue(run.2, c("N+3"=3,"N+2"=2, "N+1" =1,"N" = 0,
+                                   "N-1" = -1, "N-2" = -2, "N-3" = -3))) %>% 
+  mutate(run.1 = factor(run.1, 
+                        levels=c(3,2,1,0,-1,-2,-3)),
+        run.2 = factor(run.2, 
+                        levels=c(-3,-2,-1,0,1,2,3))) %>% 
+  ggplot(., aes(x=run.2,y=run.1, fill=m)) + 
+  geom_tile() + 
+  coord_fixed() +
+  scale_fill_gradient2(low = wesanderson::wes_palette("Zissou1")[1],
+                       mid = "white",
+                       high = wesanderson::wes_palette("Zissou1")[5],
+                       midpoint = 0,
+                       guide = "colorbar",
+                       na.value = "grey50",
+                       name = "Pairmate Similarity Scores ("~italic(z)~")")+
+  labs(x = "Distance to LR", y = "Distance to LR")+
+  geom_text(aes(x=run.2, y=run.1, 
+                label = weights::rd(m, digits=3)),
+            color = "black",
+            size = 3) +
+  theme_settings + 
+  theme(legend.position = "bottom") + 
+  guides(fill = guide_colourbar(title.position = "left",
+                                #barheight = 15))
+                                barwidth =14))
+
+
+```
+
+# Supplementary Figure 2c
+
+```{r}
+sub.summary = roi.cor.matrix %>% 
+  filter(run.1 %!in% c('N-5','N-4','N+4', 'N+5')) %>% 
+  filter(run.2 %!in% c('N-5','N-4','N+4', 'N+5')) %>% 
+  group_by(run.1, run.2, sub, roi) %>% 
+  mutate(minus.plus = ifelse(
+    (run.1 %in% c('N-3','N-2','N-1') && run.2 %in% c('N-3','N-2','N-1')),
+    '-/-',
+    ifelse(
+      (run.1 %in% c('N+3','N+2','N+1', 'N') && run.2 %in% c('N+3','N+2','N+1', 'N')),
+      '+/+', '+/-'))) %>%
+  group_by(minus.plus, sub, roi) %>% 
+  summarise(Mean = mean(z))
+
+plot.summary = sub.summary %>% 
+  group_by(minus.plus, roi) %>% 
+  summarise(mean = mean(Mean), se= sd(Mean)/(sqrt(n())), n=n()) %>% 
+  mutate(minus.plus = factor(minus.plus, levels = c('-/-', 'IP', '+/-', '+/+')))
+
+ggplot(data = plot.summary %>% filter(roi=="ca23dg"), aes(x=minus.plus, y=mean, color=roi)) +
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_point(stat='identity', size=3, position=position_dodge(width=0.3))+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0, size=1, position=position_dodge(width=0.3)) +
+  scale_colour_manual(values=cbPalette)+
+    facet_wrap(~roi, nrow = 1) + 
+  theme_settings + 
+  labs(y = "Pairmate Similarity Scores ("~italic(z)~")")+
+  theme(legend.position = "none",
+        strip.background = element_blank(),
+        strip.text.x = element_blank())
+
+```
+
+```{r stat}
+ezANOVA(data=sub.summary,
+        dv=Mean, 
+        wid=sub,
+        within=.(minus.plus))
+
+t.test(sub.summary %>% filter(minus.plus == "+/-") %>% .$Mean)
+cohensD(sub.summary %>% filter(minus.plus == "+/-") %>% .$Mean)
+
+t.test(sub.summary %>% filter(minus.plus == "-/-") %>% .$Mean)
+cohensD(sub.summary %>% filter(minus.plus == "-/-") %>% .$Mean)
+
+t.test(sub.summary %>% filter(minus.plus == "+/+") %>% .$Mean)
+cohensD(sub.summary %>% filter(minus.plus == "+/+") %>% .$Mean)
+#t.test(sub.summary %>% filter(minus.plus == "IP") %>% .$Mean)
+
+t.test(sub.summary %>% filter(minus.plus == "-/-") %>% .$Mean,
+       sub.summary %>% filter(minus.plus == "+/-") %>% .$Mean,
+       paired = TRUE)
+cohensD(sub.summary %>% filter(minus.plus == "-/-") %>% .$Mean,
+       sub.summary %>% filter(minus.plus == "+/-") %>% .$Mean,
+       method="paired")
+
+t.test(sub.summary %>% filter(minus.plus == "+/+") %>% .$Mean,
+       sub.summary %>% filter(minus.plus == "+/-") %>% .$Mean,
+       paired = TRUE)
+cohensD(sub.summary %>% filter(minus.plus == "+/+") %>% .$Mean,
+       sub.summary %>% filter(minus.plus == "+/-") %>% .$Mean,
+       method="paired")
+
+t.test(sub.summary %>% filter(minus.plus == "IP") %>% .$Mean,
+       sub.summary %>% filter(minus.plus == "+/+") %>% .$Mean,
+       paired = TRUE)
+
+t.test(sub.summary %>% filter(minus.plus == "IP") %>% .$Mean,
+       sub.summary %>% filter(minus.plus == "-/-") %>% .$Mean,
+       paired = TRUE)
+```
+
+# Supplementary Figure 3a
+
+```{r}
+output = read_csv('../data/PSS_behav.csv')
+
+output = output %>% rename(post_ip_run = run)
+
+output$roi = plyr::revalue(output$roi, c("ca23dg_body_thre_0.5"="CA3/DG",
+                                       "ca1_body_thre_0.5"="CA1",
+                                       "ppa_avg_scene_top_300" = "PPA",
+                                       "evc_avg_all_top_300" = "EVC"))
+output$roi = factor(output$roi, levels = c("CA3/DG", "CA1", "PPA", "EVC"))
+output_long <- gather(output, run, mean, `1`:`5`, factor_key=FALSE)
+
+df = setNames(data.frame(matrix(ncol = 5, nrow = 0)), c("sub", "scene_id", ""))
+
+for (each_run in c(3:6)){
+  print(each_run)
+          pre = output_long %>% 
+            filter(post_ip_run == each_run & run == (each_run-2))%>% 
+              mutate(run = 'pre')
+          ip = output_long %>% 
+            filter(post_ip_run == each_run & run == (each_run-1))%>% 
+              mutate(run = 'ip')
+          df = rbind(df, pre, ip)
+}
+
+df_wide <- spread(df, run, mean) %>% 
+    group_by(roi, sub) %>% 
+    mutate(bin = as.numeric(cut2(pre, g=3))) %>% filter(roi%in%c('CA3/DG', 'CA1'))
+
+df_wide %>% 
+  group_by(roi, bin, sub) %>% 
+  count() %>% 
+  filter(roi == 'CA3/DG') %>%
+  ungroup() %>% 
+  group_by(bin) %>% 
+  summarise(m = mean(n), sum=sum(n))
+
+df.sum.by.sub = df_wide %>% 
+  gather(time, value, -c(sub, scene_id, post_ip_run, bin, roi)) %>% 
+  group_by(bin, time, roi, sub) %>% 
+  summarise(mean = mean(value), n = n())
+df.sum.by.sub$bin = factor(df.sum.by.sub$bin)
+
+df.sum.by.group = df.sum.by.sub %>% group_by(bin, time, roi) %>% summarise(M = mean(mean),se = sd(mean)/(sqrt(n())))
+df.sum.by.group$time = factor(df.sum.by.group$time, levels = c('pre', 'ip'))
+df.sum.by.group$bin = factor(df.sum.by.group$bin)
+
+fig3c = ggplot(df.sum.by.group %>% filter(time == 'ip' & roi %in% c('CA3/DG', 'CA1') ), aes(x=bin, y=M, color=roi))+
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_point(stat='identity', size=3.5, position=position_dodge(width=0.3)) +
+  geom_errorbar(aes(ymin=M-se, ymax=M+se), size=1, width=0,position=position_dodge(width=0.3))+
+  scale_color_manual(values = cbPalette, name="ROIs")+
+  ylim(-0.035,0.025) + 
+  labs(y="Pairmate Similarity Scores at IP ("~italic(z)~")", x="Pre-IP Pairmate Similarity Scores (Tercile)")+
+  scale_x_discrete(labels=c("1" = "1st", 
+                            "2" = "2nd",
+                            "3" = "3rd"))+
+  theme_settings+ theme(legend.justification=c(0,0), 
+                        legend.position=c(0.3,0.05))
+
+```
+
+```{r stat}
+ezANOVA(
+  data=df.sum.by.sub %>% filter(time=='ip'),
+  dv=mean, 
+  wid=sub,
+  within=.(roi, bin)
+)
+
+t.test(df.sum.by.sub %>% filter(time=='ip' & bin == 3 & roi == 'CA3/DG') %>% .$mean)
+cohensD(df.sum.by.sub %>% filter(time=='ip' & bin == 3 & roi == 'CA3/DG') %>% .$mean)
+
+t.test(df.sum.by.sub %>% filter(time=='ip' & bin == 3 & roi == 'CA3/DG') %>% .$mean,
+       df.sum.by.sub %>% filter(time=='ip' & bin == 3 & roi == 'CA1') %>% .$mean,
+       paired = TRUE)
+cohensD(df.sum.by.sub %>% filter(time=='ip' & bin == 3 & roi == 'CA3/DG') %>% .$mean,
+       df.sum.by.sub %>% filter(time=='ip' & bin == 3 & roi == 'CA1') %>% .$mean, method = "paired")
+
+```
+
+# Supplementary Figure 3b
+
+```{r}
+df_wide <- spread(df, run, mean) %>% 
+    group_by(roi, sub) %>% 
+    mutate(bin = as.numeric(cut2(pre, g=5))) %>% filter(roi%in%c('CA3/DG', 'CA1'))
+
+df_wide %>% 
+  group_by(roi, bin, sub) %>% 
+  count() %>% 
+  filter(roi == 'CA3/DG') %>%
+  ungroup() %>% 
+  group_by(bin) %>% 
+  summarise(m = mean(n), sum=sum(n))
+
+df.sum.by.sub = df_wide %>% 
+  gather(time, value, -c(sub, scene_id, post_ip_run, bin, roi)) %>% 
+  group_by(bin, time, roi, sub) %>% 
+  summarise(mean = mean(value), n = n())
+df.sum.by.sub$bin = factor(df.sum.by.sub$bin)
+
+df.sum.by.group = df.sum.by.sub %>% group_by(bin, time, roi) %>% summarise(M = mean(mean),se = sd(mean)/(sqrt(n())))
+df.sum.by.group$time = factor(df.sum.by.group$time, levels = c('pre', 'ip'))
+df.sum.by.group$bin = factor(df.sum.by.group$bin)
+
+ggplot(df.sum.by.group %>% filter(time == 'ip' & roi %in% c('CA3/DG', 'CA1') ), aes(x=bin, y=M, color=roi))+
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_point(stat='identity', size=3.5, position=position_dodge(width=0.3)) +
+  geom_errorbar(aes(ymin=M-se, ymax=M+se), size=1, width=0,position=position_dodge(width=0.3))+
+  scale_color_manual(values = cbPalette, name="ROIs")+
+  ylim(-0.035,0.025) + 
+  labs(y="Pairmate Similarity Scores at IP ("~italic(z)~")", x="Pre-IP Pairmate Similarity Scores (Quintile)")+
+  scale_x_discrete(labels=c("1" = "1st", 
+                            "2" = "2nd",
+                            "3" = "3rd",
+                            "4" = "4th",
+                            "5" = "5th"))+
+  theme_settings+ theme(legend.justification=c(0,0), 
+                        legend.position=c(0.3,0.05))
+```
+
+```{r stat}
+ezANOVA(
+  data=df.sum.by.sub %>% filter(time=='ip'),
+  dv=mean, 
+  wid=sub,
+  within=.(roi, bin)
+)
+
+t.test(df.sum.by.sub %>% filter(time=='ip' & bin == 5 & roi == 'CA3/DG') %>% .$mean)
+cohensD(df.sum.by.sub %>% filter(time=='ip' & bin == 5 & roi == 'CA3/DG') %>% .$mean)
+
+t.test(df.sum.by.sub %>% filter(time=='ip' & bin == 5 & roi == 'CA3/DG') %>% .$mean,
+       df.sum.by.sub %>% filter(time=='ip' & bin == 5 & roi == 'CA1') %>% .$mean,
+       paired = TRUE)
+cohensD(df.sum.by.sub %>% filter(time=='ip' & bin == 5 & roi == 'CA3/DG') %>% .$mean,
+       df.sum.by.sub %>% filter(time=='ip' & bin == 5 & roi == 'CA1') %>% .$mean, method = "paired")
+
+```
+
+# Supplementary Figure 4
+
+```{r}
+
+df_wide <- spread(df, run, mean) %>% 
+    group_by(roi, sub) %>% 
+    mutate(bin = as.numeric(cut2(pre, g=4))) %>% filter(roi%in%c('CA3/DG', 'CA1'))
+
+df_wide %>% 
+  group_by(roi, bin, sub) %>% 
+  count() %>% 
+  filter(roi == 'CA3/DG') %>%
+  ungroup() %>% 
+  group_by(bin) %>% 
+  summarise(m = mean(n), sum=sum(n))
+
+df.sum.by.sub = df_wide %>% 
+  gather(time, value, -c(sub, scene_id, post_ip_run, bin, roi)) %>% 
+  group_by(bin, time, roi, sub) %>% 
+  summarise(mean = mean(value), n = n())
+df.sum.by.sub$bin = factor(df.sum.by.sub$bin)
+df.sum.by.sub$time = factor(df.sum.by.sub$time, levels = c('pre', 'ip'))
+
+df.sum.by.group = df.sum.by.sub %>% group_by(bin, time, roi) %>% summarise(M = mean(mean),se = sd(mean)/(sqrt(n())))
+df.sum.by.group$time = factor(df.sum.by.group$time, levels = c('pre', 'ip'))
+df.sum.by.group$bin = factor(df.sum.by.group$bin)
+
+ggplot(df.sum.by.group %>% filter(roi %in% c('CA3/DG', 'CA1')), 
+       aes(x=bin, y=M, color=time))+
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_point(aes(x=bin, y=mean, color = time), 
+             alpha = 0.25,
+             size = 0.8,
+             data = df.sum.by.sub%>% filter(roi %in% c('CA3/DG', 'CA1')),
+             position=position_dodge(width=0.3))+
+  ungeviz::geom_hpline(stat = "identity",
+                       position=position_dodge(width=0.3),
+                       width = 0.2,
+                       size = 1.2)+
+  #geom_point(stat='identity', size=2, position=position_dodge(width=0.3)) +
+  scale_color_manual(values = c(cbPalette[5], cbPalette[8]), 
+                     labels = c("Pre-IP", "IP"),
+                     name="Timepoint")+
+  #ylim(-0.035,0.025) + 
+  labs(y="Pairmate Similarity Scores at IP ("~italic(z)~")", x="Pre-IP Pairmate Similarity Scores (Quartile)")+
+  scale_x_discrete(labels=c("1" = "1st", 
+                            "2" = "2nd",
+                            "3" = "3rd",
+                            "4" = "4th"))+
+  facet_wrap(~roi)+
+  theme_settings+ theme(legend.position="bottom",
+                        strip.background = element_blank(),
+                        strip.text.x = text.14)
+```
+
+# Supplementary Figure 5
+
+```{r}
+ca23dg.ca1 = read.csv2('../data/separated_object.csv') %>% 
+  filter(roi %in% c("ca23dg_body_thre_0.5", "ca1_body_thre_0.5"))
+ca23dg.ca1$roi <- factor(ca23dg.ca1$roi, levels = rois)
+ca23dg.ca1$type <- factor(ca23dg.ca1$type, levels = c("within_item-across_pair",
+                                                        "within_pair-across_pair"))
+ca23dg.ca1$type = plyr::revalue(ca23dg.ca1$type, c("within_item-across_pair"="target", "within_pair-across_pair"="competitor"))
+ca23dg.ca1$roi = plyr::revalue(ca23dg.ca1$roi, c("ca23dg_body_thre_0.5"="CA23DG", 
+                                       "ca1_body_thre_0.5"="CA1"))
+ca23dg.ca1$run = factor(ca23dg.ca1$run, levels=c('pre-learned', 'learned'))
+
+plot_diff_df = ca23dg.ca1 %>% group_by(type, run, obj, roi) %>% 
+  summarise(Mean = mean(z), se= sd(z)/(sqrt(n())))
+
+ggplot(plot_diff_df %>% filter(roi %in% c('CA23DG', 'CA1')), aes(x=run, y=Mean, color=roi, group = type))+
+  geom_hline(yintercept=0,linetype="dashed", color = "darkgrey")+
+  geom_line(stat='identity', size=1.5,aes(linetype=type),  position=position_dodge(width=0.25))+
+    geom_point(stat='identity', size=3,position=position_dodge(width=0.25))+
+    geom_errorbar(aes(ymin=Mean-se, ymax=Mean+se), width=0, size=1, position=position_dodge(width=0.25)) + 
+   scale_color_manual(values = cbPalette, name='ROIs') +
+  scale_x_discrete(labels=c("pre-IP" = "pre-learned", "IP" = "learned"))+
+    labs(y = "Scene-object Correlations (z-scored)", x = "Run")+
+    theme_settings+
+  facet_grid(obj~roi)+theme(legend.position = 'bottom',
+                            strip.text.x = element_text(size=20),
+                            strip.text.y = element_text(size=20),
+                            strip.background = element_blank())
+```
+
+```{r stat}
+ezANOVA(data=ca23dg.ca1,
+        wid=sub,
+        within = .(run, obj, type, roi),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA23DG"),
+        wid=sub,
+        within = .(run, obj, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA1"),
+        wid=sub,
+        within = .(run, obj, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA23DG") %>% filter(obj == "first"),
+        wid=sub,
+        within = .(run, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA23DG") %>% filter(obj == "last"),
+        wid=sub,
+        within = .(run, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA1") %>% filter(obj == "first"),
+        wid=sub,
+        within = .(run, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA1") %>% filter(obj == "last"),
+        wid=sub,
+        within = .(run, type),
+        dv = z)
+```
+
+```{r}
+csv = ca23dg.ca1 %>% select(-X)
+csv
+
+csv %>% write_csv("../fig_source_data/sup_fig5.csv")
+```

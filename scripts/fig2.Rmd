@@ -1,0 +1,245 @@
+---
+title: "fig2"
+author: "Wanjia Guo"
+date: "6/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("set_up.R")
+plot_sub <- read_csv2("../data/pairmate_similarity_scores.csv") %>% 
+  select(-c(X1, type))
+plot_sub$roi <- factor(plot_sub$roi, levels =rois)
+plot_sub$roi = plyr::revalue(plot_sub$roi,
+                                 c("ca23dg_body_thre_0.5"="CA23DG", 
+                                       "ca1_body_thre_0.5"="CA1",
+                                       "ppa_avg_scene_top_300" = "PPA",
+                                       "evc_avg_all_top_300" = "EVC"))
+plot_diff_df = plot_sub %>% 
+  group_by(run, roi) %>% summarise(Mean = mean(z), se= sd(z)/(sqrt(n())))
+
+ca23dg_permutation <- read_csv("../data/ca23dg_premutations.csv") %>% 
+  filter(run == 'IP') %>% select(-type)
+
+load("../data/correlation_matrix_update_all_data.RData")
+
+'%!in%' <- function(x,y)!('%in%'(x,y))
+```
+
+# Fig.2c
+
+```{r fig.2c}
+plot_diff_df$run = plyr::revalue(plot_diff_df$run,
+                                 c('Pre' = 'Pre-IP'))
+fig2.c = ggplot(plot_diff_df, aes(x=run, y=Mean, color=roi))+
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_line(aes(color=roi, group=roi), size=1)+
+    geom_errorbar(aes(ymin=Mean-se, ymax=Mean+se), width=0, size=1) + 
+    geom_point(stat='identity', aes(shape=run, fill=run), size=3, stroke = 1.5)+
+    #geom_point(stat='identity',fill = c("white"), 
+    #       data = filter(plot_diff_df, run == "Pre-IP"))+
+    scale_shape_manual(values=c(21, 16))+
+    scale_fill_manual(values=c("white", cbPalette))+
+    scale_colour_manual(values=cbPalette, name = "Runs")+
+    ylim(-0.015,0.02) + 
+    labs(y = expression("Pairmate Similarity Scores ("~italic(z)~")"), x = "Timepoints")+
+    theme_settings+facet_grid(~roi)+
+    theme(strip.background = element_blank(),
+          legend.position = "none",
+          strip.text.x=element_blank(),
+          strip.placement = 'outside')
+fig2.c
+```
+
+
+```{r fig.2c stats}
+
+plot_sub$run = plyr::revalue(plot_sub$run, c('Pre' = 'IP-1'))
+
+# Two way ANOVA across ROIs and Runs
+ezANOVA(data=plot_sub,
+        wid=sub,
+        within = .(roi, run),
+        dv = z)
+
+# one way ANOVA across ROIs at IP
+ezANOVA(data=plot_sub %>% filter(run == 'IP'),
+        wid=sub,
+        within = .(roi),
+        dv = z)
+
+# one way ANOVA across ROIs at IP-1
+ezANOVA(data=plot_sub %>% filter(run == 'IP-1'),
+        wid=sub,
+        within = .(roi),
+        dv = z)
+
+# CA23DG
+ca23dg.stat = plot_sub %>% filter(roi=='CA23DG')
+ca23dg.stat.wide =  ca23dg.stat %>% ungroup() %>% transmute(overall=run, z=z, sub=sub) %>% spread(overall,z)
+
+t.test(ca23dg.stat.wide$`IP-1`, ca23dg.stat.wide$IP, paired=TRUE)
+cohensD(ca23dg.stat.wide$`IP-1`, ca23dg.stat.wide$IP, method="paired")
+
+t.test(ca23dg.stat.wide$IP)
+cohensD(ca23dg.stat.wide$IP)
+
+t.test(ca23dg.stat.wide$`IP-1`)
+cohensD(ca23dg.stat.wide$`IP-1`)
+
+# CA1
+ca1.stat = plot_sub %>% filter(roi=='CA1')
+ca1.stat.wide =  ca1.stat %>% ungroup() %>% transmute(overall=run, z=z, sub=sub) %>% spread(overall,z)
+
+t.test(ca1.stat.wide$`IP-1`, ca1.stat.wide$IP, paired=TRUE)
+cohensD(ca1.stat.wide$`IP-1`, ca1.stat.wide$IP, method="paired")
+
+t.test(ca1.stat.wide$IP)
+cohensD(ca1.stat.wide$IP)
+
+t.test(ca1.stat.wide$`IP-1`)
+cohensD(ca1.stat.wide$`IP-1`)     
+
+# PPA
+ppa.stat = plot_sub %>% filter(roi=='PPA')
+ppa.stat.wide =  ppa.stat %>% ungroup() %>% transmute(overall=run, z=z, sub=sub) %>% spread(overall,z)
+
+t.test(ppa.stat.wide$`IP-1`, ppa.stat.wide$IP, paired=TRUE)
+cohensD(ppa.stat.wide$`IP-1`, ppa.stat.wide$IP, method="paired")
+
+t.test(ppa.stat.wide$IP)
+cohensD(ppa.stat.wide$IP)
+
+t.test(ppa.stat.wide$`IP-1`)
+cohensD(ppa.stat.wide$`IP-1`)
+
+# EVC
+evc.stat = plot_sub %>% filter(roi=='EVC')
+evc.stat.wide =  evc.stat %>% ungroup() %>% transmute(overall=run, z=z, sub=sub) %>% spread(overall,z)
+
+t.test(evc.stat.wide$`IP-1`, evc.stat.wide$IP, paired=TRUE)
+cohensD(evc.stat.wide$`IP-1`, evc.stat.wide$IP, method="paired")
+
+t.test(evc.stat.wide$IP)
+cohensD(evc.stat.wide$IP)
+
+t.test(evc.stat.wide$`IP-1`)
+cohensD(evc.stat.wide$`IP-1`)
+```
+
+# Fig.2d
+
+```{r}
+# Importing files with 1000 permutations in ca23dg.
+ip.datapoint = ca23dg_permutation %>% filter(rand == 3) %>% .$z %>% mean()
+ca23dg.summary = ca23dg_permutation %>% group_by(rand) %>% summarise(m = mean(z)) %>% mutate(type = ifelse(m>ip.datapoint, 'left', 'right'))
+
+
+fig2.d = ggplot(ca23dg.summary %>% filter(rand != 3), aes(x=m)) + 
+  geom_histogram(aes(fill = type), bins =50) + 
+  geom_segment(x=ip.datapoint, xend=ip.datapoint, y=20, yend=-Inf, linetype="dashed", color = "red3") + 
+  geom_vline(xintercept = 0,  linetype="dashed") + 
+  annotate("text", x = -0.0112, y = 8, label = "italic(p)==0.013", parse=TRUE) + 
+  annotate("text", x = ip.datapoint, y = 22, label = "actual") + 
+  scale_fill_manual(values = c("darkgrey","red3")) + 
+  theme_settings + 
+  labs(x = 'Mean Pairmate Similarity Score at IP', y = 'Count') + 
+  xlim(-0.0133, 0.0077) +
+  theme(legend.position = 'none')
+
+fig2.d
+```
+
+```{r fig.2d stats}
+tf = ca23dg_permutation %>% filter(run == 'IP' & rand != 3) %>% group_by(rand) %>% summarise(m=mean(z)) %>% mutate(tf = ifelse(m > ip.datapoint, 1, 0))
+
+1-mean(tf$tf)
+```
+
+# Fig. 2e
+```{r fig.2e}
+remove('plot.summary')
+remove('sub.summary')
+
+for (roi.cor.matrix in all_data) {
+  tmp = roi.cor.matrix %>% filter(run.1 == 'N') %>% filter(run.2 %!in% c('N-5','N-4','N+4', 'N+5'))
+  
+  tmp.sub = tmp %>% 
+    group_by(run.2, sub, roi) %>% 
+    summarise(mean = mean(z))
+  
+  tmp.summary = tmp.sub %>% mutate(z=mean) %>% 
+    group_by(run.2, roi) %>% 
+    summarise(mean = mean(z), se= sd(z)/(sqrt(n())))
+  
+    if(exists('plot.summary')){
+      plot.summary = bind_rows(plot.summary, tmp.summary)
+      sub.summary = bind_rows(sub.summary, tmp.sub)
+    }else{
+      plot.summary = tmp.summary
+      sub.summary = tmp.sub
+    }
+  }
+
+plot.summary$run.2 = factor(plot.summary$run.2, 
+                     levels = c("N-3", "N-2", "N-1", "N","N+1", "N+2", "N+3"))
+plot.summary$roi = factor(plot.summary$roi, 
+                     levels = c("ca23dg", "ca1", "ppa", "evc"))
+
+plot.summary = plot.summary %>% mutate(pre.post = ifelse(run.2 != 'N-1','IP','others'))
+
+fig2.e = ggplot(data = plot.summary, aes(x=run.2, y=mean, color=roi, fill=pre.post, shape=pre.post)) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0, size=1) +
+  geom_hline(yintercept=0, linetype="dashed", color = "darkgrey")+
+  geom_point(stat='identity', size=3, stroke = 1.5)+
+  scale_shape_manual(values=c(21,16))+
+  scale_colour_manual(values=cbPalette, name = "Runs")+
+  scale_fill_manual(values = c("white", "blue")) + 
+  facet_wrap(~roi, nrow=1)+
+  ylim(-0.015,0.018) + 
+  labs(x='Timepoints', y = "Pairmate Similarity Scores ("~italic(z)~")")+
+  theme_settings +
+    theme(legend.position = "none",
+          strip.background = element_blank(),
+          strip.text.x = element_blank(),
+          panel.spacing.x = unit(0.8, "lines"))+ 
+  scale_x_discrete(name ="Distance to LR", 
+                    labels=c("-3","-2","-1","1","2","3"))
+
+fig2.e
+```
+
+```{r fig.2e stats}
+fig.2e.stat = sub.summary %>% 
+  mutate(pre.post = ifelse(run.2 %in% c('N-3','N-2','N-1'),
+                                        'pre','post')) %>% 
+  group_by(pre.post, sub, roi) %>% 
+  summarise(m = mean(mean))
+
+ca23dg.stat = fig.2e.stat %>% filter(roi == 'ca23dg')
+ca1.stat = fig.2e.stat %>% filter(roi == 'ca1')
+ppa.stat = fig.2e.stat %>% filter(roi == 'ppa')
+evc.stat = fig.2e.stat %>% filter(roi == 'evc')
+
+t.test(ca23dg.stat %>% filter(pre.post == 'pre') %>% .$m,
+       ca23dg.stat %>% filter(pre.post == 'post') %>% .$m,
+       paired = TRUE)
+cohensD(ca23dg.stat %>% filter(pre.post == 'pre') %>% .$m,
+        ca23dg.stat %>% filter(pre.post == 'post') %>% .$m, method="paired")
+
+t.test(ca1.stat %>% filter(pre.post == 'pre') %>% .$m,
+       ca1.stat %>% filter(pre.post == 'post') %>% .$m,
+       paired = TRUE)
+cohensD(ca1.stat %>% filter(pre.post == 'pre') %>% .$m,
+        ca1.stat %>% filter(pre.post == 'post') %>% .$m, method="paired")
+t.test(ppa.stat %>% filter(pre.post == 'pre') %>% .$m,
+       ppa.stat %>% filter(pre.post == 'post') %>% .$m,
+       paired = TRUE)
+cohensD(ppa.stat %>% filter(pre.post == 'pre') %>% .$m,
+        ppa.stat %>% filter(pre.post == 'post') %>% .$m, method="paired")
+t.test(evc.stat %>% filter(pre.post == 'pre') %>% .$m,
+       evc.stat %>% filter(pre.post == 'post') %>% .$m,
+       paired = TRUE)
+cohensD(evc.stat %>% filter(pre.post == 'pre') %>% .$m,
+        evc.stat %>% filter(pre.post == 'post') %>% .$m, method="paired")
+```
