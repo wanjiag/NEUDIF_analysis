@@ -21,7 +21,7 @@ plot_diff_df = plot_sub %>%
 ca23dg_permutation <- read_csv("../data/ca23dg_premutations.csv") %>% 
   filter(run == 'IP') %>% select(-type)
 
-load("../data/correlation_matrix_update_all_data.RData")
+load("../data/correlation_matrix.RData")
 
 '%!in%' <- function(x,y)!('%in%'(x,y))
 ```
@@ -231,12 +231,15 @@ t.test(ca1.stat %>% filter(pre.post == 'pre') %>% .$m,
        ca1.stat %>% filter(pre.post == 'post') %>% .$m,
        paired = TRUE)
 cohensD(ca1.stat %>% filter(pre.post == 'pre') %>% .$m,
-        ca1.stat %>% filter(pre.post == 'post') %>% .$m, method="paired")
+        ca1.stat %>% filter(pre.post == 'post') %>% .$m, 
+        method="paired")
+
 t.test(ppa.stat %>% filter(pre.post == 'pre') %>% .$m,
        ppa.stat %>% filter(pre.post == 'post') %>% .$m,
        paired = TRUE)
 cohensD(ppa.stat %>% filter(pre.post == 'pre') %>% .$m,
         ppa.stat %>% filter(pre.post == 'post') %>% .$m, method="paired")
+
 t.test(evc.stat %>% filter(pre.post == 'pre') %>% .$m,
        evc.stat %>% filter(pre.post == 'post') %>% .$m,
        paired = TRUE)

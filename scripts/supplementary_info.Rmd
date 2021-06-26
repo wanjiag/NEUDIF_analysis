@@ -77,7 +77,7 @@ behav = behavioral_df %>% filter(subnum %in% sub_list) %>%
             n = n()) %>% 
   mutate(scene_num = scene_num+1,
          type = "behavior",
-         session = run) 
+         session = run) %>% 
   rename(
     rounds = run,
     scene_id = scene_num)
@@ -192,6 +192,29 @@ ggplot(sub_session_df, aes(x=session, y=Mean, color=roi))+
     ) +
   facet_wrap(~roi, nrow=1)
 ```
+
+```{r stat}
+ezANOVA(data=session_df %>% filter(roi == 'CA23DG'),
+        wid=sub,
+        within = .(session),
+        dv = value)
+
+ezANOVA(data=session_df %>% filter(roi == 'CA1'),
+        wid=sub,
+        within = .(session),
+        dv = value)
+
+ezANOVA(data=session_df %>% filter(roi == 'PPA'),
+        wid=sub,
+        within = .(session),
+        dv = value)
+
+ezANOVA(data=session_df %>% filter(roi == 'EVC'),
+        wid=sub,
+        within = .(session),
+        dv = value)
+```
+
 
 # Supplementary Figure 2b
 
