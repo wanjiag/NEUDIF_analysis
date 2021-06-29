@@ -59,7 +59,7 @@ fig1.d
 
 # Fig.1e
 
-```{r revised: fig.1e}
+```{r fig.1e}
 
 plot_turning = turning %>% 
   filter(subnum %in% sub_list) %>% 

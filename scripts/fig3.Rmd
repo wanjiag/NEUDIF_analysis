@@ -98,13 +98,17 @@ ezANOVA(lag.later.cor.sub,
         wid=sub,
         within=.(roi,lag))
 
-
+t.test(lag.later.cor.sub %>% filter(roi=='PPA' & lag==1) %>% .$M)
+cohensD(lag.later.cor.sub %>% filter(roi=='PPA' & lag==1) %>% .$M)
+t.test(lag.later.cor.sub %>% filter(roi=='PPA' & lag==2) %>% .$M)
+cohensD(lag.later.cor.sub %>% filter(roi=='PPA' & lag==2) %>% .$M)
 
 t.test(lag.later.cor.sub %>% filter(roi=='EVC' & lag==1) %>% .$M)
 cohensD(lag.later.cor.sub %>% filter(roi=='EVC' & lag==1) %>% .$M)
 
+t.test(lag.later.cor.sub %>% filter(roi=='EVC' & lag==2) %>% .$M)
+cohensD(lag.later.cor.sub %>% filter(roi=='EVC' & lag==2) %>% .$M)
 
-t.test(lag.later.cor.sub %>% filter(roi=='PPA' & lag==2) %>% .$M)
 
 t.test(lag.later.cor.sub %>% filter(roi=='PPA' & lag==1) %>% .$M,
        lag.later.cor.sub %>% filter(roi=='PPA' & lag==2) %>% .$M,

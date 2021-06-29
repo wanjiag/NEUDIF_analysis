@@ -18,6 +18,8 @@ plot_sub$roi = plyr::revalue(plot_sub$roi,
                                "ppa_avg_scene_top_300" = "PPA", 
                                "evc_avg_all_top_300" = "EVC"))
 plot_sub$run = factor(plot_sub$run, levels=c('pre-IP', 'IP'))
+
+diff_output = plot_sub
 plot_sub = plot_sub %>% filter(roi %in% c("CA23DG", "CA1"))
 
 plot_diff_df = plot_sub %>% group_by(type, run, roi) %>% 
@@ -43,5 +45,34 @@ fig4.b = ggplot(plot_diff_df, aes(x=run, y=Mean, color=roi, group = type))+
                                      legend.position = 'none')
 
 fig4.b
+```
+
+```{r stats}
+
+
+ezANOVA(data=diff_output %>% filter(roi %in% c('CA23DG', 'CA1')),
+        dv = z,
+        wid=sub,
+        within=.(run,type,roi))
+
+ezANOVA(data=diff_output %>% filter(roi=='CA23DG'),
+        dv = z,
+        wid=sub,
+        within=.(run,type))
+
+ezANOVA(data=diff_output %>% filter(roi=='CA1'),
+        dv = z,
+        wid=sub,
+        within=.(run,type))
+
+ezANOVA(data=diff_output %>% filter(roi=='PPA'),
+        dv = z,
+        wid=sub,
+        within=.(run,type))
+
+ezANOVA(data=diff_output %>% filter(roi=='EVC'),
+        dv = z,
+        wid=sub,
+        within=.(run,type))
 ```
 
