@@ -74,7 +74,7 @@ plot_summary = plot_turning %>% group_by(run) %>%
 plot1.e = ggplot(plot_summary, aes(x=run, y=Mean))+
   geom_bar(stat="identity", color="lightseagreen", width = 0.7, fill="white", size=1)+
   geom_jitter(plot_turning, mapping = aes(x=run, y=count),
-              color='darkgrey',width = 0.15, height = 0, size=2, alpha = 0.4)+
+              color='lightseagreen',width = 0.2, height = 0, size=2, alpha = 0.3)+
   scale_y_continuous(name="# of Pairs Learned") +
   scale_x_continuous(name="Rounds",breaks=seq(1,7,1),labels = c(1:6, 'N.L.'))+
   theme_settings + 
