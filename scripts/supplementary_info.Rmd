@@ -543,20 +543,21 @@ ggplot(df.sum.by.group %>% filter(roi %in% c('CA3/DG', 'CA1')),
 # Supplementary Figure 5
 
 ```{r}
-ca23dg.ca1 = read.csv2('../data/separated_object.csv') %>% 
-  filter(roi %in% c("ca23dg_body_thre_0.5", "ca1_body_thre_0.5"))
+ca23dg.ca1 = read.csv2('../data/separated_object.csv')
 ca23dg.ca1$roi <- factor(ca23dg.ca1$roi, levels = rois)
 ca23dg.ca1$type <- factor(ca23dg.ca1$type, levels = c("within_item-across_pair",
                                                         "within_pair-across_pair"))
 ca23dg.ca1$type = plyr::revalue(ca23dg.ca1$type, c("within_item-across_pair"="target", "within_pair-across_pair"="competitor"))
-ca23dg.ca1$roi = plyr::revalue(ca23dg.ca1$roi, c("ca23dg_body_thre_0.5"="CA23DG", 
-                                       "ca1_body_thre_0.5"="CA1"))
+ca23dg.ca1$roi = plyr::revalue(ca23dg.ca1$roi, c("ca23dg_body_thre_0.5"="CA3/DG", 
+                                       "ca1_body_thre_0.5"="CA1",
+                                       "ppa_avg_scene_top_300" = "PPA",
+                                       "evc_avg_all_top_300" = "EVC"))
 ca23dg.ca1$run = factor(ca23dg.ca1$run, levels=c('pre-learned', 'learned'))
 
 plot_diff_df = ca23dg.ca1 %>% group_by(type, run, obj, roi) %>% 
   summarise(Mean = mean(z), se= sd(z)/(sqrt(n())))
 
-ggplot(plot_diff_df %>% filter(roi %in% c('CA23DG', 'CA1')), aes(x=run, y=Mean, color=roi, group = type))+
+ggplot(plot_diff_df, aes(x=run, y=Mean, color=roi, group = type))+
   geom_hline(yintercept=0,linetype="dashed", color = "darkgrey")+
   geom_line(stat='identity', size=1.5,aes(linetype=type),  position=position_dodge(width=0.25))+
     geom_point(stat='identity', size=3,position=position_dodge(width=0.25))+
@@ -577,12 +578,22 @@ ezANOVA(data=ca23dg.ca1,
         within = .(run, obj, type, roi),
         dv = z)
 
-ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA23DG"),
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA3/DG"),
         wid=sub,
         within = .(run, obj, type),
         dv = z)
 
 ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA1"),
+        wid=sub,
+        within = .(run, obj, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "PPA"),
+        wid=sub,
+        within = .(run, obj, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "EVC"),
         wid=sub,
         within = .(run, obj, type),
         dv = z)
@@ -603,6 +614,26 @@ ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA1") %>% filter(obj == "first"),
         dv = z)
 
 ezANOVA(data=ca23dg.ca1 %>% filter(roi == "CA1") %>% filter(obj == "last"),
+        wid=sub,
+        within = .(run, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "PPA") %>% filter(obj == "first"),
+        wid=sub,
+        within = .(run, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "PPA") %>% filter(obj == "last"),
+        wid=sub,
+        within = .(run, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "EVC") %>% filter(obj == "first"),
+        wid=sub,
+        within = .(run, type),
+        dv = z)
+
+ezANOVA(data=ca23dg.ca1 %>% filter(roi == "EVC") %>% filter(obj == "last"),
         wid=sub,
         within = .(run, type),
         dv = z)
